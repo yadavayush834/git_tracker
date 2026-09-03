@@ -179,6 +179,14 @@ export function Dashboard({ initialData }: { initialData: DashboardPayload }) {
         if (savedUser) setUsername(savedUser);
         if (savedOverrides) setOverrides(JSON.parse(savedOverrides) as Overrides);
       } catch { /* A corrupt local cache should not block the dashboard. */ }
+      void fetch("/api/dashboard")
+        .then(async (response) => {
+          if (!response.ok) return;
+          const storedData = await response.json() as DashboardPayload;
+          setData(storedData);
+          localStorage.setItem("repo-pulse-data", JSON.stringify(storedData));
+        })
+        .catch(() => { /* Demo and local data remain available if storage is offline. */ });
     }, 0);
     return () => window.clearTimeout(timer);
   }, []);
