@@ -6,6 +6,16 @@ export type RepositoryStatus =
   | "Completed"
   | "Maintained";
 
+export type RepositoryUnderstanding = {
+  projectKind: string;
+  framework: string | null;
+  summary: string;
+  nextAction: string;
+  healthScore: number;
+  signals: string[];
+  fileCount: number;
+};
+
 export type Repository = {
   id: number;
   name: string;
@@ -24,6 +34,7 @@ export type Repository = {
   topics: string[];
   archived: boolean;
   isFork: boolean;
+  understanding?: RepositoryUnderstanding | null;
 };
 
 export type ActivityItem = {
@@ -50,9 +61,9 @@ const daysAgo = (days: number) => new Date(now - days * 86_400_000).toISOString(
 export const demoPayload: DashboardPayload = {
   profile: { login: "your-github", name: "Your workspace", avatarUrl: "", profileUrl: "https://github.com" },
   repositories: [
-    { id: 1, name: "pulse-dashboard", description: "A focused analytics dashboard for tracking product health.", language: "TypeScript", visibility: "private", status: "In progress", progress: 72, updatedAt: daysAgo(0), pushedAt: daysAgo(0), url: "https://github.com", stars: 0, forks: 0, openIssues: 4, size: 1384, topics: ["nextjs", "analytics"], archived: false, isFork: false },
+    { id: 1, name: "pulse-dashboard", description: "A focused analytics dashboard for tracking product health.", language: "TypeScript", visibility: "private", status: "In progress", progress: 72, updatedAt: daysAgo(0), pushedAt: daysAgo(0), url: "https://github.com", stars: 0, forks: 0, openIssues: 4, size: 1384, topics: ["nextjs", "analytics"], archived: false, isFork: false, understanding: { projectKind: "Web application", framework: "Next.js", summary: "Web application built with Next.js. It currently includes README, Tests, CI, and Deployment.", nextAction: "Define the next shippable milestone and link it to an issue.", healthScore: 90, signals: ["README", "Tests", "CI", "Deployment"], fileCount: 146 } },
     { id: 2, name: "finflow-api", description: "Personal finance API and automatic transaction categorizer.", language: "Python", visibility: "private", status: "In progress", progress: 48, updatedAt: daysAgo(2), pushedAt: daysAgo(2), url: "https://github.com", stars: 0, forks: 0, openIssues: 7, size: 842, topics: ["fastapi", "finance"], archived: false, isFork: false },
-    { id: 3, name: "portfolio-v3", description: "The third iteration of my personal portfolio and writing space.", language: "TypeScript", visibility: "public", status: "Maintained", progress: 100, updatedAt: daysAgo(7), pushedAt: daysAgo(7), url: "https://github.com", stars: 12, forks: 2, openIssues: 1, size: 563, topics: ["portfolio", "design"], archived: false, isFork: false },
+    { id: 3, name: "portfolio-v3", description: "The third iteration of my personal portfolio and writing space.", language: "TypeScript", visibility: "public", status: "Maintained", progress: 100, updatedAt: daysAgo(7), pushedAt: daysAgo(7), url: "https://github.com", stars: 12, forks: 2, openIssues: 1, size: 563, topics: ["portfolio", "design"], archived: false, isFork: false, understanding: { projectKind: "Web application", framework: "Next.js", summary: "Web application built with Next.js. It currently includes README and Deployment.", nextAction: "Add a small automated test suite around the main workflow.", healthScore: 60, signals: ["README", "Deployment"], fileCount: 78 } },
     { id: 4, name: "local-ai-notes", description: "Experiments with local models and a searchable notes interface.", language: "Python", visibility: "public", status: "Started", progress: 24, updatedAt: daysAgo(18), pushedAt: daysAgo(18), url: "https://github.com", stars: 3, forks: 0, openIssues: 0, size: 230, topics: ["ai", "notes"], archived: false, isFork: false },
     { id: 5, name: "habit-mobile", description: "A tiny habit tracker for experiments with React Native.", language: "JavaScript", visibility: "private", status: "Stale", progress: 36, updatedAt: daysAgo(126), pushedAt: daysAgo(126), url: "https://github.com", stars: 0, forks: 0, openIssues: 2, size: 441, topics: ["mobile"], archived: false, isFork: false },
     { id: 6, name: "weather-cli", description: "Minimal terminal weather client with saved locations.", language: "Go", visibility: "public", status: "Completed", progress: 100, updatedAt: daysAgo(63), pushedAt: daysAgo(63), url: "https://github.com", stars: 8, forks: 1, openIssues: 0, size: 186, topics: ["cli"], archived: true, isFork: false },

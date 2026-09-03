@@ -1,9 +1,9 @@
 import "server-only";
 
-import { and, desc, eq, isNull, notInArray } from "drizzle-orm";
+import { and, asc, desc, eq, isNull, lt, notInArray, or } from "drizzle-orm";
 import { getDatabase, isDatabaseConfigured } from "@/db/client";
 import { activityEvents, githubInstallations, repositories, syncRuns, webhookDeliveries } from "@/db/schema";
-import { classifyRepository, type ActivityItem, type DashboardPayload, type RepositoryStatus } from "@/lib/dashboard-data";
+import { classifyRepository, type ActivityItem, type DashboardPayload, type RepositoryStatus, type RepositoryUnderstanding } from "@/lib/dashboard-data";
 import type { GitHubAccountPayload, GitHubRepositoryPayload } from "@/lib/github-types";
 
 export { isDatabaseConfigured };
@@ -139,10 +139,52 @@ export async function finishSyncRun(id: number, repositoriesSeen: number, error?
   }).where(eq(syncRuns.id, id));
 }
 
-export async function getStoredDashboard(): Promise<DashboardPayload | null> {
+export async function getInstallationIds() {
+  return getDatabase().select({ id: githubInstallations.id }).from(githubInstallations);
+}
+
+export async function getRepositoriesForAnalysis(limit: number) {
+  const staleBefore = new Date(Date.now() - 7 * 86_400_000);
+  return getDatabase().select({
+    id: repositories.id,
+    installationId: repositories.installationId,
+    fullName: repositories.fullName,
+    defaultBranch: repositories.defaultBranch,
+    size: repositories.size,
+    pushedAt: repositories.pushedAt,
+  }).from(repositories).where(and(
+    isNull(repositories.removedAt),
+    or(isNull(repositories.analyzedAt), lt(repositories.analyzedAt, staleBefore)),
+  )).orderBy(asc(repositories.analyzedAt)).limit(Math.min(Math.max(limit, 1), 20));
+}
+
+export async function saveRepositoryUnderstanding(repositoryId: number, understanding: RepositoryUnderstanding) {
+  await getDatabase().update(repositories).set({
+    understanding,
+    analysisVersion: 1,
+    analyzedAt: new Date(),
+  }).where(eq(repositories.id, repositoryId));
+}
+
+export async function setManualRepositoryStatus(repositoryId: number, accountLogin: string, status: RepositoryStatus) {
+  const db = getDatabase();
+  const [ownedRepository] = await db.select({ id: repositories.id })
+    .from(repositories)
+    .innerJoin(githubInstallations, eq(repositories.installationId, githubInstallations.id))
+    .where(and(eq(repositories.id, repositoryId), eq(githubInstallations.accountLogin, accountLogin)))
+    .limit(1);
+  if (!ownedRepository) return false;
+  await db.update(repositories).set({ manualStatus: status }).where(eq(repositories.id, repositoryId));
+  return true;
+}
+
+export async function getStoredDashboard(accountLogin?: string): Promise<DashboardPayload | null> {
   if (!isDatabaseConfigured()) return null;
   const db = getDatabase();
-  const [installation] = await db.select().from(githubInstallations).orderBy(desc(githubInstallations.updatedAt)).limit(1);
+  const installationQuery = db.select().from(githubInstallations);
+  const [installation] = accountLogin
+    ? await installationQuery.where(eq(githubInstallations.accountLogin, accountLogin)).orderBy(desc(githubInstallations.updatedAt)).limit(1)
+    : await installationQuery.orderBy(desc(githubInstallations.updatedAt)).limit(1);
   if (!installation) return null;
   const [repoRows, eventRows] = await Promise.all([
     db.select().from(repositories).where(and(eq(repositories.installationId, installation.id), isNull(repositories.removedAt))).orderBy(desc(repositories.pushedAt)),
@@ -181,6 +223,7 @@ export async function getStoredDashboard(): Promise<DashboardPayload | null> {
       topics: repo.topics,
       archived: repo.isArchived,
       isFork: repo.isFork,
+      understanding: repo.understanding,
     })),
     activities: eventRows.map((event) => ({
       id: event.id,

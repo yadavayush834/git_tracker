@@ -1,9 +1,9 @@
 import { syncGitHubInstallation } from "@/data/github-sync";
-import { isDatabaseConfigured } from "@/data/repository-store";
+import { getInstallationIds, isDatabaseConfigured } from "@/data/repository-store";
 import { isGitHubAppConfigured } from "@/lib/github-app";
 import { safeSecretEqual } from "@/lib/webhook-signature";
 
-export async function POST(request: Request) {
+async function handleCron(request: Request) {
   const cronSecret = process.env.CRON_SECRET;
   if (!cronSecret || !safeSecretEqual(request.headers.get("authorization"), `Bearer ${cronSecret}`)) {
     return Response.json({ error: "Unauthorized." }, { status: 401 });
@@ -11,14 +11,19 @@ export async function POST(request: Request) {
   if (!isDatabaseConfigured() || !isGitHubAppConfigured()) {
     return Response.json({ error: "Database or GitHub App configuration is missing." }, { status: 503 });
   }
-  const installationId = Number(process.env.GITHUB_APP_INSTALLATION_ID);
-  if (!Number.isSafeInteger(installationId) || installationId <= 0) {
-    return Response.json({ error: "GITHUB_APP_INSTALLATION_ID is invalid." }, { status: 503 });
-  }
   try {
-    const result = await syncGitHubInstallation(installationId);
-    return Response.json({ ok: true, ...result });
+    const configuredId = Number(process.env.GITHUB_APP_INSTALLATION_ID);
+    const installations = Number.isSafeInteger(configuredId) && configuredId > 0
+      ? [{ id: configuredId }]
+      : await getInstallationIds();
+    if (installations.length === 0) return Response.json({ error: "No GitHub App installation is connected." }, { status: 409 });
+    const results = [];
+    for (const installation of installations) results.push(await syncGitHubInstallation(installation.id));
+    return Response.json({ ok: true, installations: results });
   } catch {
     return Response.json({ error: "GitHub reconciliation failed." }, { status: 502 });
   }
 }
+
+export const GET = handleCron;
+export const POST = handleCron;

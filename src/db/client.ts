@@ -6,7 +6,7 @@ import * as schema from "./schema";
 
 function createDatabase(connectionString: string) {
   const client = postgres(connectionString, {
-    max: process.env.NODE_ENV === "production" ? 10 : 1,
+    max: 1,
     prepare: false,
     idle_timeout: 20,
     connect_timeout: 10,

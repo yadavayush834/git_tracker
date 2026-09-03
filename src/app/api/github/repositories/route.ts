@@ -1,4 +1,5 @@
 import { classifyRepository, type ActivityItem, type Repository } from "@/lib/dashboard-data";
+import { auth, isAuthenticationConfigured } from "@/auth";
 
 type GitHubRepo = {
   id: number; name: string; description: string | null; language: string | null;
@@ -65,23 +66,30 @@ export async function GET(request: Request) {
   const configuredUsername = process.env.GITHUB_USERNAME?.trim();
   const token = process.env.GITHUB_TOKEN?.trim();
   const username = requestedUsername || configuredUsername;
+  const apiToken = requestedUsername ? undefined : token;
 
   if (username && !usernamePattern.test(username)) {
     return Response.json({ error: "Enter a valid GitHub username." }, { status: 400 });
   }
-  if (!username && !token) {
+  if (!username && !apiToken) {
     return Response.json({ error: "Enter a GitHub username or configure GITHUB_TOKEN." }, { status: 400 });
   }
 
+  if (apiToken) {
+    if (!isAuthenticationConfigured()) return Response.json({ error: "Authenticated private import is not configured." }, { status: 503 });
+    const session = await auth();
+    if (!session?.user?.login) return Response.json({ error: "Unauthorized." }, { status: 401 });
+  }
+
   try {
-    const user = await githubFetch<GitHubUser>(username ? `https://api.github.com/users/${username}` : "https://api.github.com/user", token);
-    const usePrivateEndpoint = Boolean(token && !requestedUsername && (!configuredUsername || configuredUsername === user.login));
+    const user = await githubFetch<GitHubUser>(username ? `https://api.github.com/users/${username}` : "https://api.github.com/user", apiToken);
+    const usePrivateEndpoint = Boolean(apiToken && !requestedUsername && (!configuredUsername || configuredUsername === user.login));
     const repoEndpoint = usePrivateEndpoint
       ? "https://api.github.com/user/repos?per_page=100&sort=pushed&affiliation=owner"
       : `https://api.github.com/users/${user.login}/repos?per_page=100&sort=pushed&type=owner`;
     const [githubRepos, events] = await Promise.all([
-      githubFetch<GitHubRepo[]>(repoEndpoint, token),
-      githubFetch<GitHubEvent[]>(`https://api.github.com/users/${user.login}/events?per_page=100`, token).catch(() => []),
+      githubFetch<GitHubRepo[]>(repoEndpoint, apiToken),
+      githubFetch<GitHubEvent[]>(`https://api.github.com/users/${user.login}/events?per_page=100`, apiToken).catch(() => []),
     ]);
 
     const repositories: Repository[] = githubRepos.map((repo) => {

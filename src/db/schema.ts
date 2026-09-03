@@ -12,6 +12,7 @@ import {
   uniqueIndex,
   varchar,
 } from "drizzle-orm/pg-core";
+import type { RepositoryUnderstanding } from "@/lib/dashboard-data";
 
 export const repositoryStatus = pgEnum("repository_status", [
   "In progress",
@@ -62,10 +63,14 @@ export const repositories = pgTable("repositories", {
   githubUpdatedAt: timestamp("github_updated_at", { withTimezone: true }),
   removedAt: timestamp("removed_at", { withTimezone: true }),
   syncedAt: timestamp("synced_at", { withTimezone: true }).notNull().defaultNow(),
+  understanding: jsonb("understanding").$type<RepositoryUnderstanding>(),
+  analysisVersion: integer("analysis_version").notNull().default(0),
+  analyzedAt: timestamp("analyzed_at", { withTimezone: true }),
 }, (table) => [
   uniqueIndex("repositories_full_name_idx").on(table.fullName),
   index("repositories_installation_idx").on(table.installationId),
   index("repositories_status_idx").on(table.detectedStatus),
+  index("repositories_analysis_idx").on(table.analyzedAt),
 ]);
 
 export const activityEvents = pgTable("activity_events", {

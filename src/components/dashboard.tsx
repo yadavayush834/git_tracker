@@ -23,6 +23,7 @@ import {
   Rocket,
   Search,
   Settings,
+  ShieldCheck,
   Sparkles,
   Star,
   Target,
@@ -136,10 +137,12 @@ function RepoRow({ repo, onStatusChange }: { repo: Repository; onStatusChange: (
           <p>{repo.description}</p>
           <div className="repo-meta">
             {repo.language && <span><i style={{ background: languageColors[repo.language] ?? "#8b5cf6" }} />{repo.language}</span>}
+            {repo.understanding && <span className="understanding-chip" title={repo.understanding.nextAction}><Sparkles size={12} />{repo.understanding.framework ?? repo.understanding.projectKind} · {repo.understanding.healthScore}%</span>}
             {repo.stars > 0 && <span><Star size={13} />{repo.stars}</span>}
             {repo.forks > 0 && <span><GitBranch size={13} />{repo.forks}</span>}
             <span>Updated {formatRelative(repo.pushedAt)}</span>
           </div>
+          {repo.understanding && <div className="understanding-preview"><span>{repo.understanding.summary}</span><strong>Next: {repo.understanding.nextAction}</strong></div>}
         </div>
       </div>
       <div className="repo-status">
@@ -156,7 +159,15 @@ function RepoRow({ repo, onStatusChange }: { repo: Repository; onStatusChange: (
   );
 }
 
-export function Dashboard({ initialData }: { initialData: DashboardPayload }) {
+export function Dashboard({
+  initialData,
+  authenticated = false,
+  githubAppSlug,
+}: {
+  initialData: DashboardPayload;
+  authenticated?: boolean;
+  githubAppSlug?: string;
+}) {
   const [data, setData] = useState(initialData);
   const [view, setView] = useState<View>("overview");
   const [mobileMenu, setMobileMenu] = useState(false);
@@ -225,6 +236,13 @@ export function Dashboard({ initialData }: { initialData: DashboardPayload }) {
     const next = { ...overrides, [id]: status };
     setOverrides(next);
     localStorage.setItem("repo-pulse-overrides", JSON.stringify(next));
+    if (authenticated) {
+      void fetch(`/api/repositories/${id}/status`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status }),
+      }).catch(() => { /* The local override remains available if persistence is temporarily offline. */ });
+    }
   }
 
   const nav = [
@@ -293,7 +311,7 @@ export function Dashboard({ initialData }: { initialData: DashboardPayload }) {
         </div>
       </main>
 
-      {syncOpen && <div className="modal-backdrop" role="presentation" onMouseDown={() => setSyncOpen(false)}><section className="sync-modal" role="dialog" aria-modal="true" aria-labelledby="sync-title" onMouseDown={(event) => event.stopPropagation()}><button className="modal-close" onClick={() => setSyncOpen(false)} aria-label="Close"><X size={18} /></button><div className="modal-icon"><Code2 size={24} /></div><h2 id="sync-title">Connect your GitHub</h2><p>Enter your username to import public repositories now. Add a server token later for private repositories.</p><form onSubmit={syncGithub}><label htmlFor="github-username">GitHub username</label><div className="username-field"><span>github.com/</span><input id="github-username" value={username} onChange={(event) => setUsername(event.target.value)} placeholder="your-username" autoFocus required /></div>{error && <div className="form-error"><AlertTriangle size={15} />{error}</div>}<button className="modal-submit" disabled={loading}>{loading ? <><RefreshCw size={17} className="spin" />Syncing repositories…</> : <><Code2 size={17} />Import repositories</>}</button></form><small><Check size={13} />No credentials are stored in the browser.</small></section></div>}
+      {syncOpen && <div className="modal-backdrop" role="presentation" onMouseDown={() => setSyncOpen(false)}><section className="sync-modal" role="dialog" aria-modal="true" aria-labelledby="sync-title" onMouseDown={(event) => event.stopPropagation()}><button className="modal-close" onClick={() => setSyncOpen(false)} aria-label="Close"><X size={18} /></button><div className="modal-icon"><Code2 size={24} /></div><h2 id="sync-title">Connect your GitHub</h2><p>{authenticated && githubAppSlug ? "Install the read-only GitHub App for private repositories, automatic updates, and deeper project analysis." : "Enter your username to import public repositories now. Add the GitHub App when you deploy for private access and automatic updates."}</p>{authenticated && githubAppSlug && <><a className="install-app-button" href={`https://github.com/apps/${githubAppSlug}/installations/new`}><ShieldCheck size={17} />Install GitHub App</a><div className="modal-separator"><span>or preview public data</span></div></>}<form onSubmit={syncGithub}><label htmlFor="github-username">GitHub username</label><div className="username-field"><span>github.com/</span><input id="github-username" value={username} onChange={(event) => setUsername(event.target.value)} placeholder="your-username" autoFocus required /></div>{error && <div className="form-error"><AlertTriangle size={15} />{error}</div>}<button className="modal-submit" disabled={loading}>{loading ? <><RefreshCw size={17} className="spin" />Syncing repositories…</> : <><Code2 size={17} />Import public repositories</>}</button></form><small><Check size={13} />Tokens and private data remain server-side.</small></section></div>}
     </div>
   );
 }
